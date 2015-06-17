@@ -17,6 +17,20 @@
 
 package com.googlecode.jhocr.converter;
 
+import com.googlecode.jhocr.element.HocrDocument;
+import com.googlecode.jhocr.element.HocrPage;
+import com.googlecode.jhocr.parser.HocrParser;
+import com.googlecode.jhocr.util.LoggUtilException;
+import com.googlecode.jhocr.util.enums.PDFFormats;
+import com.itextpdf.text.Document;
+import com.itextpdf.text.DocumentException;
+import com.itextpdf.text.pdf.ICC_Profile;
+import com.itextpdf.text.pdf.PdfAConformanceLevel;
+import com.itextpdf.text.pdf.PdfAWriter;
+import com.itextpdf.text.pdf.PdfWriter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -24,24 +38,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.googlecode.jhocr.element.HocrDocument;
-import com.googlecode.jhocr.element.HocrPage;
-import com.googlecode.jhocr.parser.HocrParser;
-import com.googlecode.jhocr.util.LoggUtilException;
-import com.googlecode.jhocr.util.enums.PDFF;
-import com.itextpdf.text.Document;
-import com.itextpdf.text.DocumentException;
-import com.itextpdf.text.pdf.ICC_Profile;
-import com.itextpdf.text.pdf.PdfAConformanceLevel;
-import com.itextpdf.text.pdf.PdfAWriter;
-import com.itextpdf.text.pdf.PdfWriter;
-
 /**
  * TODO add documentation
- * TODO improve the way the information is beeing passed to the document e.g.: com-googlecode-jhocr-info
+ * TODO improve the way the information is being passed to the document e.g.: com-googlecode-jhocr-info
  * TODO add documentation, for example why exactly 72.0f
  * 
  */
@@ -51,12 +50,12 @@ public class HocrToPdf {
 	private final List<HocrDocumentItem>	items					= new ArrayList<HocrDocumentItem>();
 	private List<HashMap<String, Object>>	outlines				= new ArrayList<HashMap<String, Object>>();
 	private boolean							useImageDpi				= true;
-	private PDFF							pdfFormat				= null;
+    private PDFFormats pdfFormat = null;
 
 	private final static Logger				logger					= LoggerFactory.getLogger(new LoggUtilException().toString());
 
 	private static final String				KEY_JHOCR_INFO			= "com-googlecode-jhocr-info";
-	private static final String				KEY_JHOCR_INFO_VALUE	= "This document were generated with jhocr, for more information visit: https://code.google.com/p/jhocr";
+    private static final String KEY_JHOCR_INFO_VALUE = "This document was generated with jhocr, for more information visit: https://code.google.com/p/jhocr";
 
 	/**
 	 * @param outputStream
@@ -93,18 +92,18 @@ public class HocrToPdf {
 
 		if (!getItems().isEmpty() && getItems() != null) {
 
-			PDFF pdff = getPdfFormat();
+            PDFFormats PDFFormats = getPdfFormat();
 
-			if (pdff != null) {
+            if (PDFFormats != null) {
 
-				if (pdff.getValue() instanceof Integer) {
+                if (PDFFormats.getValue() instanceof Integer) {
 
-					result = convertToPDFX((Integer) pdff.getValue());
+                    result = convertToPDFX((Integer) PDFFormats.getValue());
 
-				} else if (pdff instanceof PDFF) {
+                } else if (PDFFormats instanceof PDFFormats) {
 
-					PdfAConformanceLevel pdfCL = (PdfAConformanceLevel) pdff.getValue();
-					result = convertToPDFA(pdfCL);
+                    PdfAConformanceLevel pdfCL = (PdfAConformanceLevel) PDFFormats.getValue();
+                    result = convertToPDFA(pdfCL);
 
 				}
 
@@ -135,45 +134,14 @@ public class HocrToPdf {
 			document.open();
 			document.addHeader(KEY_JHOCR_INFO, KEY_JHOCR_INFO_VALUE);
 			document.setMargins(0, 0, 0, 0);
+            processDocument(document, writer);
 
-			/**
-			 * TODO add documentation
-			 */
-			for (HocrDocumentItem item : getItems()) {
 
-				HocrParser parser = new HocrParser(item.getHocrInputStream());
-
-				HocrDocument hocrDocument = parser.parse();
-
-				/**
-				 * TODO add documentation
-				 * TODO add multipage image support
-				 */
-				if (hocrDocument.getPages().size() > 1) {
-					throw new UnsupportedOperationException("Multipage tif are not yet implemented, please report: http://code.google.com/p/jhocr/issues/list");
-				}
-
-				/**
-				 * TODO add documentation
-				 */
-				for (HocrPage hocrPage : hocrDocument.getPages()) {
-					HocrPageProcessor pageProcessor = new HocrPageProcessor(hocrPage, item.getImageInputStream(), isUseImageDpi());
-
-					if (pageProcessor.isInitialized()) {
-						pageProcessor.process(document, writer);
-					}
-				}
-			}
-
-			if (!outlines.isEmpty()) {
-				writer.setOutlines(outlines);
-			}
-
-			/**
-			 * Closing the document body stream.
-			 */
-			document.close();
-			getOutputStream().close();
+            /**
+             * Closing the document body stream.
+             */
+            document.close();
+            getOutputStream().close();
 			result = true;
 
 		} catch (UnsupportedOperationException e) {
@@ -193,9 +161,38 @@ public class HocrToPdf {
 		return result;
 	}
 
-	/**
-	 * 
-	 * @param pdfXConformance
+    private void processDocument(Document document, PdfWriter writer) {
+        /**
+         * TODO add documentation
+         */
+        for (HocrDocumentItem item : getItems()) {
+
+            HocrParser parser = new HocrParser(item.getHocrInputStream());
+
+            HocrDocument hocrDocument = parser.parse();
+
+            /**
+             * TODO add documentation
+             */
+            for (HocrPage hocrPage : hocrDocument.getPages()) {
+                HocrPageProcessor pageProcessor = new HocrPageProcessor(hocrPage,
+                        item.getImageForPage(hocrPage.getPageNumber()),
+                        isUseImageDpi());
+
+                if (pageProcessor.isInitialized()) {
+                    pageProcessor.process(document, writer);
+                }
+            }
+        }
+
+        if (!outlines.isEmpty()) {
+            writer.setOutlines(outlines);
+        }
+    }
+
+    /**
+     *
+     * @param pdfXConformance
 	 *            determines into which format the PDF-X will be converted.
 	 * @return true if the conversion was successful.
 	 */
@@ -214,35 +211,7 @@ public class HocrToPdf {
 			/**
 			 * TODO add documentation
 			 */
-			for (HocrDocumentItem item : getItems()) {
-
-				HocrParser parser = new HocrParser(item.getHocrInputStream());
-
-				HocrDocument hocrDocument = parser.parse();
-
-				/**
-				 * TODO add documentation
-				 * TODO add multipage image support
-				 */
-				if (hocrDocument.getPages().size() > 1) {
-					throw new UnsupportedOperationException("Multipage tif are not yet implemented, please report: http://code.google.com/p/jhocr/issues/list");
-				}
-
-				/**
-				 * TODO add documentation
-				 */
-				for (HocrPage hocrPage : hocrDocument.getPages()) {
-					HocrPageProcessor pageProcessor = new HocrPageProcessor(hocrPage, item.getImageInputStream(), isUseImageDpi());
-
-					if (pageProcessor.isInitialized()) {
-						pageProcessor.process(document, writer);
-					}
-				}
-			}
-
-			if (!outlines.isEmpty()) {
-				writer.setOutlines(outlines);
-			}
+            processDocument(document, writer);
 
 			/**
 			 * Closing the document body stream.
@@ -278,12 +247,6 @@ public class HocrToPdf {
 		boolean result = false;
 		Document document = new Document();
 
-		ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-
-		if (classLoader == null) {
-			classLoader = Class.class.getClassLoader();
-		}
-
 		try {
 			PdfAWriter writer = PdfAWriter.getInstance(document, getOutputStream(), pdfConformanceLevel);
 			writer.createXmpMetadata();
@@ -295,35 +258,7 @@ public class HocrToPdf {
 			/**
 			 * TODO add documentation
 			 */
-			for (HocrDocumentItem item : getItems()) {
-
-				HocrParser parser = new HocrParser(item.getHocrInputStream());
-
-				HocrDocument hocrDocument = parser.parse();
-
-				/**
-				 * TODO add documentation
-				 * TODO add multipage image support
-				 */
-				if (hocrDocument.getPages().size() > 1) {
-					throw new UnsupportedOperationException("Multipage tif are not yet implemented, please report: http://code.google.com/p/jhocr/issues/list");
-				}
-
-				/**
-				 * TODO add documentation
-				 */
-				for (HocrPage hocrPage : hocrDocument.getPages()) {
-					HocrPageProcessor pageProcessor = new HocrPageProcessor(hocrPage, item.getImageInputStream(), isUseImageDpi());
-
-					if (pageProcessor.isInitialized()) {
-						pageProcessor.process(document, writer);
-					}
-				}
-			}
-
-			if (!outlines.isEmpty()) {
-				writer.setOutlines(outlines);
-			}
+            processDocument(document, writer);
 
 			InputStream is = this.getClass().getResourceAsStream("/sRGB.profile");
 
@@ -410,8 +345,8 @@ public class HocrToPdf {
 	 * 
 	 * @return the {@link #pdfFormat} that was set for the current document.
 	 */
-	public PDFF getPdfFormat() {
-		return pdfFormat;
+    public PDFFormats getPdfFormat() {
+        return pdfFormat;
 	}
 
 	/**
@@ -420,8 +355,8 @@ public class HocrToPdf {
 	 * @param pdfFormat
 	 *            sets the PDF format for the current document to be converted.
 	 */
-	public void setPdfFormat(PDFF pdfFormat) {
-		this.pdfFormat = pdfFormat;
+    public void setPdfFormat(PDFFormats pdfFormat) {
+        this.pdfFormat = pdfFormat;
 	}
 
 }
